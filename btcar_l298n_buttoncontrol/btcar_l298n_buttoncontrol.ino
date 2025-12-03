@@ -23,7 +23,7 @@ void setup() {
   pinMode( PWMB, OUTPUT );
 }
 
-char command = "S";
+char command = 'S';
 
 void loop() {
 
