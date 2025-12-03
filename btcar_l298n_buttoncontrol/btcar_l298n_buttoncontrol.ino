@@ -1,13 +1,18 @@
 #include "BluetoothSerial.h"
 
-#define Bluetooth "BTCar" // Bluetooth Name !
+#define Bluetooth "BTCar.LS.v1.0.1" // Bluetooth Name !
 
+// --- Pin Configuration (Change as needed) ---
+// These GPIO pins connect to the L298N motor driver.
+// n1 / n2  → Left motor direction control
+// n3 / n4  → Right motor direction control
+// ENA / ENB → Motor speed control (PWM)
 #define n1 33
 #define n2 25
 #define n3 26
 #define n4 27
-#define PWMA 32
-#define PWMB 14
+#define ENA 32
+#define ENB 14
 
 BluetoothSerial BT;
 
@@ -19,8 +24,8 @@ void setup() {
   pinMode( n2, OUTPUT );
   pinMode( n3, OUTPUT );
   pinMode( n4, OUTPUT );
-  pinMode( PWMA, OUTPUT );
-  pinMode( PWMB, OUTPUT );
+  pinMode( ENA, OUTPUT );
+  pinMode( ENB, OUTPUT );
 }
 
 char command = 'S';
@@ -74,8 +79,8 @@ void loop() {
       break;
   }
 
-    analogWrite( PWMA , 255 ); // Set motor speed (0-255)
-    analogWrite( PWMB , 255 ); // Set motor speed (0-255)
+    analogWrite( ENA , 255 ); // Set motor speed (0-255)
+    analogWrite( ENB , 255 ); // Set motor speed (0-255)
 }
 
 void n1_on(){ digitalWrite( n1 , HIGH ); }
