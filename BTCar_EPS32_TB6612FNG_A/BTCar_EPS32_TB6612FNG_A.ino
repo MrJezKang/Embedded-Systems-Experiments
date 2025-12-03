@@ -2,34 +2,44 @@
 
 BluetoothSerial BT;
 
+#define Bluetooth "<Name Here>" // Bluetooth Name !
+
+// Designed to operate with specific BT Car controller App !
+
 // ============================ P I N   D E F I N I T I O N S ============================ 
-#define ENA 13 // PWM Pin for Motor A
-#define IN1 15 // Control Pin 1 for Motor A
-#define IN2 32 // Control Pin 2 for Motor A
-#define ENB 14 // PWM Pin for Motor B
-#define IN3 27 // Control Pin 1 for Motor B
-#define IN4 26 // Control Pin 2 for Motor B
+#define PWMA 13 
+#define AIN1 15 
+#define AIN2 32 
+#define PWMB 14 
+#define BIN1 27 
+#define BIN2 26 
+#define STBY 
 
 // ========================== C O N T R O L   V A R I A B L E S ========================== 
+
 char driverDriveA = 'F';
 char targetDriveA = 'F';
 char driverDriveB = 'F';
 char targetDriveB = 'F';
 char targerSteer = 'R';
 
-// ============================ M O T O R   V A R I A B L E S ============================
+
+let perepherals = 8b0000010;
+// parkingBreak , speedMode , headLights
+bool parkingBreak = false;
+bool speedMode = false;
+bool headLights = false;
+bool canTurnOnSpot = true; 
+
 int throttle = 0;
 int steerPercent = 0;
 int APWM = 0;
 int BPWM = 0;
-
-// ============================= M O D E   V A R I A B L E S =============================
-bool breakActive = false;
-bool instantMode = true;
+int speedCap = 255;
 
 // ===================== R A M P   C O N T R O L   V A R I A B L E S =====================
 long lastRampMillis = 0;
-const long rampIntervalMs = 5;
+long rampIntervalsControl = 5;
 long lastPrintMillis = 0;
 
 
@@ -37,18 +47,19 @@ long lastPrintMillis = 0;
 
 
 void setup() {
-
+  
   Serial.begin( 115200 );
-  BT.begin( "BTCar_GenA_LA" );
+  BT.begin( Bluetooth );
 
-  pinMode( ENA  , OUTPUT );
-  pinMode( IN1 , OUTPUT );
-  pinMode( IN2 , OUTPUT );
-  pinMode( ENB , OUTPUT );
-  pinMode( IN3 , OUTPUT );
-  pinMode( IN4 , OUTPUT );
+  pinMode( PWMA  , OUTPUT );
+  pinMode( AIN1 , OUTPUT );
+  pinMode( AIN2 , OUTPUT );
+  pinMode( PWMB , OUTPUT );
+  pinMode( BIN1 , OUTPUT );
+  pinMode( BIN2 , OUTPUT );
+  pinMode( STBY , OUTPUT );
 
-  Serial.println( " <---- BTCar_GenA_LA ----> " );
+  digitalWrite( STBY , HIGH );
 
 }
 
@@ -65,10 +76,12 @@ void loop() {
     // ============================== D A T A   ! B L A N K ==============================
     if( data != '\n' && data != '\r' && data != ' ' && data != 0 ) {
 
+      
+
       // ============================= L O G I C   C H E C K ============================= >>
-      if( data == 'W' ) breakActive = true;
-      else if( data == 'w' ) breakActive = false;
-      if( data == 'Z' ) instantMode = !instantMode;
+      if( data == 'W' ) parkingBreak = true;
+      else if( data == 'w' ) parkingBreak = false;
+      if( data == 'Z' ) speedMode = !speedMode;
 
       // ============================ G E T   M O V E M E N T ============================ >>
       if( data == 'F' || data == 'B' ) {
@@ -109,23 +122,23 @@ void loop() {
   long current = millis();
 
 // ================ M O T O R   S P E E D   /   S T E E R   C O N T R O L ================ >>
-  int targetENA = map( throttle , 0 , 99 , 0 , 255 );
-  int targetPWMB = map( throttle , 0 , 99 , 0 , 255 );
-  int targetSteerPercent = map( steerPercent , 0 , 60 , 0 , 255 );
+  int targetPWMA = map( throttle , 0 , 99 , 0 , speedCap );
+  int targetPWMB = map( throttle , 0 , 99 , 0 , speedCap );
+  int targetSteerPercent = map( steerPercent , 0 , 60 , 0 , speedCap );
 
   // Adjust motor speeds based on steering direction
   if( targerSteer == 'R' ) {
     targetPWMB = targetPWMB - targetSteerPercent;
-    targetENA = targetENA + targetSteerPercent;
+    targetPWMA = targetPWMA + targetSteerPercent;
   } else if ( targerSteer == 'L' ) {
-    targetENA = targetENA - targetSteerPercent;
+    targetPWMA = targetPWMA - targetSteerPercent;
     targetPWMB = targetPWMB + targetSteerPercent;
   }
 
   // Handle reverse direction
-  if( targetENA < 0 ) {
+  if( targetPWMA < 0 ) {
     targetDriveA = 'B';
-    targetENA = targetENA * -1;
+    targetPWMA = targetPWMA * -1;
   }
   if( targetPWMB < 0 ) {
     targetDriveB = 'B';
@@ -133,35 +146,35 @@ void loop() {
   }
 
   // Cap at 255
-  if( targetENA >= 255 ) targetENA  = 255;
-  if( targetPWMB >= 255 ) targetPWMB = 255;
+  if( targetPWMA >= speedCap ) targetPWMA  = speedCap;
+  if( targetPWMB >= speedCap ) targetPWMB = speedCap;
 
   // Ramp motor speeds
-  if( current - lastRampMillis > rampIntervalMs ) {
-    transistion( APWM, targetENA , driverDriveA, targetDriveA );
+  if( current - lastRampMillis > rampIntervalsControl ) {
+    transistion( APWM, targetPWMA , driverDriveA, targetDriveA );
     transistion( BPWM, targetPWMB, driverDriveB, targetDriveB );
     lastRampMillis = current;
   }
 // ================ M O T O R   S P E E D   /   S T E E R   C O N T R O L ================ <<
 
 // ================== M O T O R   D R I V E   C O N T R O L   B L O C K ================== >>
-  if( APWM == 0 ) breakActive ? A( 0b11 ) : A( 0b00 );
+  if( APWM == 0 ) parkingBreak ? A( 0b11 ) : A( 0b00 );
   else (driverDriveA == 'F' ) ? A( 0b10 ) : A( 0b01 );
 
-  if( BPWM == 0 ) breakActive ? B( 0b11 ) : B( 0b00 );
+  if( BPWM == 0 ) parkingBreak ? B( 0b11 ) : B( 0b00 );
   else (driverDriveB == 'F' ) ? B( 0b10 ) : B( 0b01 );
   
-  analogWrite( ENA  , APWM );
-  analogWrite( ENB , BPWM );
+  analogWrite( PWMA  , APWM );
+  analogWrite( PWMB , BPWM );
 // ================== M O T O R   D R I V E   C O N T R O L   B L O C K ================== <<
 
 // ========================= S E R I A L   P R I N T   B L O C K ========================= >>
   // Print data every 100ms
   if( current - lastPrintMillis > 100 ) {
     lastPrintMillis = current;
-    // Format : instantMode , breakActive ,
-    Serial.print( instantMode + String( " " ) );
-    Serial.print( breakActive + String( " " ) );
+    // Format : speedMode , parkingBreak ,
+    Serial.print( speedMode + String( " " ) );
+    Serial.print( parkingBreak + String( " " ) );
 
     // Format : driverDriveA , driverDriveB , APWM , BPWM , targerSteer , targetSteerPercent
     Serial.print( driverDriveA );
@@ -181,7 +194,7 @@ void loop() {
 
 // Ramp function
 void transistion( int &PWM, int targetPWM, char &drive, char targetDrive ) {
-  if ( instantMode ) {
+  if ( speedMode ) {
     drive = targetDrive;
     PWM = targetPWM;
   } else {
@@ -195,46 +208,46 @@ void transistion( int &PWM, int targetPWM, char &drive, char targetDrive ) {
   }
 }
 
-// Motor A control
-void A( int bit ) {
-  switch ( bit ) {
+// Motor Out Channel A
+void A( let contorl ) {
+  switch ( contorl ) {
     case 0b10:
-      digitalWrite( IN2, HIGH );
-      digitalWrite( IN1, LOW );
+      digitalWrite( AIN2, HIGH );
+      digitalWrite( AIN1, LOW );
       break;
     case 0b01:
-      digitalWrite( IN2, LOW );
-      digitalWrite( IN1, HIGH );
+      digitalWrite( AIN2, LOW );
+      digitalWrite( AIN1, HIGH );
       break;
     case 0b11:
-      digitalWrite( IN2, HIGH );
-      digitalWrite( IN1, HIGH );
+      digitalWrite( AIN2, HIGH );
+      digitalWrite( AIN1, HIGH );
       break;
     case 0b00:
-      digitalWrite( IN2, LOW );
-      digitalWrite( IN1, LOW );
+      digitalWrite( AIN2, LOW );
+      digitalWrite( AIN1, LOW );
       break;
   }
 }
 
-// Motor B control
-void B( int bit ) {
-  switch ( bit ) {
+// Motor Out Channel B
+void B( let contorl ) {
+  switch ( contorl ) {
     case 0b10:
-      digitalWrite( IN4, HIGH );
-      digitalWrite( IN3, LOW );
+      digitalWrite( BIN2, HIGH );
+      digitalWrite( BIN1, LOW );
       break;
     case 0b01:
-      digitalWrite( IN4, LOW );
-      digitalWrite( IN3, HIGH );
+      digitalWrite( BIN2, LOW );
+      digitalWrite( BIN1, HIGH );
       break;
     case 0b11:
-      digitalWrite( IN4, HIGH );
-      digitalWrite( IN3, HIGH );
+      digitalWrite( BIN2, HIGH );
+      digitalWrite( BIN1, HIGH );
       break;
     case 0b00:
-      digitalWrite( IN4, LOW );
-      digitalWrite( IN3, LOW );
+      digitalWrite( BIN2, LOW );
+      digitalWrite( BIN1, LOW );
       break;
   }
 }
