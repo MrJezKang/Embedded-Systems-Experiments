@@ -63,7 +63,7 @@ void setup() {
   ledcSetup(1, 20000, 8);
   ledcAttachPin(PWMB, 1);
 
-  digitalWrite( STBY , HIGH );
+  gpio_set_level( STBY , HIGH );
 
 }
 
