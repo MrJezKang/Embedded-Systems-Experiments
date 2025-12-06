@@ -6,10 +6,11 @@
 #define Bluetooth "BTCar.TS.L.v1.0.0" // Bluetooth Name !
 
 // --- Pin Configuration (Change as needed) ---
-// These GPIO pins connect to the L298N motor driver.
-// n1 / n2  → Left motor direction control
-// n3 / n4  → Right motor direction control
-// ENA / ENB → Motor speed control (PWM)
+// These GPIO pins connect to the TB6612FNG motor driver.
+// AIN1 / AIN2  →   motor A direction control
+// BIN1 / BIN2  →   motor B direction control
+// PWMA / BIN2  →   Motor speed control (PWM)
+// STBY         →   Enable Driver Module
 #define PWMA 32
 #define AIN1 33
 #define AIN2 25
